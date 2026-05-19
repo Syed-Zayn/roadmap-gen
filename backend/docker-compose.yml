@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # 1. Relational Database
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: saas_postgres
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Cache & Message Broker (For Rate Limiting & Tasks)
+  redis_cache:
+    image: redis:7-alpine
+    container_name: saas_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # 3. FastAPI Backend
+  fastapi_app:
+    build: 
+      context: ./backend
+    container_name: saas_backend
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres_db
+      - redis_cache
+    volumes:
+      - ./backend:/app # For hot-reloading during development
+
+  # 4. Celery Worker (For Auto-Grading & AI Tasks)
+  celery_worker:
+    build:
+      context: ./backend
+    container_name: saas_worker
+    restart: always
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis_cache
+      - postgres_db
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock # Allows Worker to spawn isolated Pytest containers
+
+  # 5. Next.js 15 Frontend
+  nextjs_front:
+    build:
+      context: ./frontend
+    container_name: saas_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+
+volumes:
+  postgres_data:

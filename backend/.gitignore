@@ -1,0 +1,22 @@
+# Environments
+.env
+.env.local
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.pytest_cache/
+alembic.ini
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+
+# Logs
+*.log
